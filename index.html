@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>¿Cómo va el nuevo? — Seguimiento 30·60·90 días</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --ink: #101010;
+    --paper: #f6f5ec;
+    --accent: #4563ff;
+    --accent-dark: #2e48d4;
+    --yellow: #fad83f;
+    --yellow-dark: #d4b020;
+    --muted: #8a8880;
+    --border: #e0dfd4;
+    --card: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .topbar {
+    background: var(--ink); color: white; padding: 18px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 4px solid var(--yellow);
+  }
+  .topbar h1 { font-family: 'DM Serif Display', serif; font-size: 1.35rem; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .topbar span { font-size: .75rem; opacity: .55; letter-spacing: 1.5px; text-transform: uppercase; }
+  .btn-historial {
+    padding: 7px 16px; background: var(--yellow); border: none;
+    border-radius: 8px; color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: .78rem;
+    font-weight: 700; cursor: pointer; transition: opacity .2s; white-space: nowrap;
+  }
+  .btn-historial:hover { opacity: .85; }
+
+  .hero { max-width: 860px; margin: 60px auto; padding: 0 32px; text-align: center; }
+  .hero h2 { font-family: 'DM Serif Display', serif; font-size: clamp(2rem,5vw,3.2rem); line-height: 1.15; margin-bottom: 18px; }
+  .hero h2 em { font-style: italic; color: var(--accent); }
+  .hero > p { color: var(--muted); font-size: 1rem; line-height: 1.7; max-width: 560px; margin: 0 auto 40px; }
+
+  .phase-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-bottom: 48px; }
+  .phase-card {
+    background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
+    padding: 28px 22px; text-align: left; cursor: pointer;
+    transition: transform .2s, box-shadow .2s, border-color .2s; position: relative; overflow: hidden;
+  }
+  .phase-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; }
+  .phase-card.d30::before { background: var(--yellow); }
+  .phase-card.d60::before { background: var(--accent); }
+  .phase-card.d90::before { background: var(--ink); }
+  .phase-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(69,99,255,.15); }
+  .phase-card:hover.d30 { border-color: var(--yellow); }
+  .phase-card:hover.d60 { border-color: var(--accent); }
+  .phase-card:hover.d90 { border-color: var(--ink); }
+  .badge { display:inline-block; font-size:.68rem; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; padding:4px 10px; border-radius:20px; margin-bottom:14px; }
+  .d30 .badge { background:#fff8d0; color:#a07800; }
+  .d60 .badge { background:#e6eaff; color:var(--accent); }
+  .d90 .badge { background:#e8e8e8; color:#333; }
+  .phase-card h3 { font-family:'DM Serif Display',serif; font-size:1.2rem; margin-bottom:8px; }
+  .phase-card p { font-size:.82rem; color:var(--muted); line-height:1.55; }
+
+  .setup-area { background:var(--card); border:1.5px solid var(--border); border-radius:20px; padding:36px; max-width:560px; margin:0 auto; }
+  .setup-area h3 { font-family:'DM Serif Display',serif; font-size:1.4rem; margin-bottom:6px; }
+  .setup-area > p { font-size:.82rem; color:var(--muted); margin-bottom:28px; }
+  .form-row { margin-bottom:18px; }
+  .form-row label { display:block; font-size:.78rem; font-weight:600; letter-spacing:.6px; text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
+  .form-row input, .form-row select {
+    width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:10px;
+    background:white; font-family:'DM Sans',sans-serif; font-size:.92rem; color:var(--ink); outline:none; transition:border-color .2s;
+  }
+  .form-row input:focus, .form-row select:focus { border-color:var(--ink); }
+  .btn-primary {
+    width:100%; padding:14px; background:var(--accent); color:white; border:none; border-radius:12px;
+    font-family:'DM Sans',sans-serif; font-size:.95rem; font-weight:600; cursor:pointer; transition:opacity .2s,transform .15s; margin-top:8px;
+  }
+  .btn-primary:hover { opacity:.88; transform:translateY(-1px); }
+
+  #eval-screen { max-width:680px; margin:0 auto; padding:48px 32px; }
+  .eval-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:36px; gap:12px; }
+  .eval-header h2 { font-family:'DM Serif Display',serif; font-size:1.6rem; }
+  .eval-header p { font-size:.83rem; color:var(--muted); margin-top:4px; }
+  .progress-wrap { display:flex; gap:6px; margin-bottom:32px; }
+  .progress-dot { height:4px; flex:1; border-radius:4px; background:var(--border); transition:background .3s; }
+  .progress-dot.done { background:var(--accent); }
+
+  .question-card { background:var(--card); border:1.5px solid var(--border); border-radius:20px; padding:36px; margin-bottom:16px; }
+  .q-number { font-size:.72rem; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
+  .q-text { font-size:1.05rem; font-weight:500; line-height:1.5; margin-bottom:28px; }
+  .q-hint { font-size:.78rem; color:var(--muted); margin-top:-18px; margin-bottom:20px; font-style:italic; }
+
+  .likert-row { display:flex; gap:8px; align-items:stretch; }
+  .likert-opt { flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; }
+  .likert-opt input { display:none; }
+  .likert-btn { width:100%; padding:14px 0; border:1.5px solid var(--border); border-radius:12px; background:white; font-family:'DM Sans',sans-serif; font-size:1.1rem; cursor:pointer; transition:all .15s; text-align:center; }
+  .likert-opt input:checked + .likert-btn { background:var(--accent); border-color:var(--accent); color:white; }
+  .likert-label { font-size:.65rem; color:var(--muted); text-align:center; line-height:1.3; }
+
+  .yesno-row { display:flex; gap:10px; }
+  .yesno-opt { flex:1; }
+  .yesno-opt input { display:none; }
+  .yesno-btn { width:100%; padding:13px; border:1.5px solid var(--border); border-radius:12px; background:white; font-family:'DM Sans',sans-serif; font-size:.9rem; font-weight:500; cursor:pointer; transition:all .15s; text-align:center; }
+  .yesno-opt input:checked + .yesno-btn { background:var(--accent); border-color:var(--accent); color:white; }
+
+  textarea { width:100%; padding:13px 15px; border:1.5px solid var(--border); border-radius:12px; font-family:'DM Sans',sans-serif; font-size:.88rem; color:var(--ink); resize:vertical; min-height:90px; outline:none; transition:border-color .2s; background:white; }
+  textarea:focus { border-color:var(--accent); }
+
+  .nav-row { display:flex; justify-content:space-between; gap:12px; margin-top:24px; }
+  .btn-back { padding:12px 28px; background:transparent; border:1.5px solid var(--border); border-radius:12px; font-family:'DM Sans',sans-serif; font-size:.88rem; cursor:pointer; transition:border-color .2s; }
+  .btn-back:hover { border-color:var(--accent); }
+  .btn-next { padding:12px 32px; background:var(--accent); color:white; border:none; border-radius:12px; font-family:'DM Sans',sans-serif; font-size:.88rem; font-weight:600; cursor:pointer; transition:opacity .2s; }
+  .btn-next:hover { opacity:.85; }
+
+  #report-screen { max-width:760px; margin:0 auto; padding:48px 32px; }
+  .report-top { text-align:center; margin-bottom:48px; }
+  .report-top h2 { font-family:'DM Serif Display',serif; font-size:2rem; margin-bottom:8px; }
+  .report-top p { color:var(--muted); font-size:.88rem; }
+
+  .verdict-box { border-radius:20px; padding:32px 36px; margin-bottom:32px; display:flex; align-items:center; gap:24px; }
+  .verdict-box.green  { background:#f0fdf4; border:2px solid #86efac; }
+  .verdict-box.yellow { background:#fffbeb; border:2px solid #fcd34d; }
+  .verdict-box.red    { background:#fff1f2; border:2px solid #fca5a5; }
+  .verdict-icon { font-size:2.8rem; line-height:1; }
+  .verdict-text h3 { font-family:'DM Serif Display',serif; font-size:1.4rem; margin-bottom:6px; }
+  .verdict-text p { font-size:.86rem; line-height:1.6; }
+
+  .score-visual { background:var(--card); border:1.5px solid var(--border); border-radius:20px; padding:32px; margin-bottom:24px; }
+  .score-visual h4 { font-size:.75rem; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin-bottom:20px; }
+  .score-bar-wrap { margin-bottom:14px; }
+  .score-bar-label { display:flex; justify-content:space-between; font-size:.82rem; margin-bottom:6px; }
+  .score-bar-track { height:8px; background:var(--border); border-radius:8px; overflow:hidden; }
+  .score-bar-fill { height:100%; border-radius:8px; transition:width 1s ease; }
+
+  .notes-card { background:var(--card); border:1.5px solid var(--border); border-radius:20px; padding:28px 32px; margin-bottom:24px; }
+  .notes-card h4 { font-size:.75rem; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; }
+  .notes-card p { font-size:.88rem; line-height:1.65; color:var(--ink); white-space:pre-wrap; }
+
+  .dim-tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .dim-tag { padding:5px 12px; border-radius:20px; font-size:.75rem; font-weight:500; background:#f0f0ec; color:var(--ink); }
+  .dim-tag.high { background:#dcfce7; color:#15803d; }
+  .dim-tag.mid  { background:#fef9c3; color:#a16207; }
+  .dim-tag.low  { background:#fee2e2; color:#b91c1c; }
+
+  .actions-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:32px; }
+  .btn-action { padding:13px; border-radius:12px; font-family:'DM Sans',sans-serif; font-size:.88rem; font-weight:600; cursor:pointer; transition:all .2s; text-align:center; border:1.5px solid var(--border); background:white; }
+  .btn-action.dark { background:var(--ink); color:white; border-color:var(--ink); }
+  .btn-action.green-btn { background:var(--accent); color:white; border-color:var(--accent); }
+  .btn-action:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(69,99,255,.2); }
+
+  /* HISTORIAL */
+  #historial-screen { max-width:960px; margin:0 auto; padding:48px 32px; }
+  .hist-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap; gap:16px; }
+  .hist-header h2 { font-family:'DM Serif Display',serif; font-size:1.8rem; }
+  .hist-actions { display:flex; gap:10px; flex-wrap:wrap; }
+  .hist-empty { text-align:center; padding:60px 20px; color:var(--muted); }
+  .hist-empty p { font-size:1rem; margin-top:12px; }
+
+  .hist-table-wrap { overflow-x:auto; border-radius:16px; border:1.5px solid var(--border); background:var(--card); }
+  table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  th { background:var(--accent); color:white; padding:12px 16px; text-align:left; font-weight:600; font-size:.75rem; letter-spacing:.6px; text-transform:uppercase; white-space:nowrap; }
+  td { padding:12px 16px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:#f9f5ee; }
+  .pill { display:inline-block; padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:600; }
+  .pill-30 { background:#fff8d0; color:#a07800; }
+  .pill-60 { background:#e6eaff; color:var(--accent); }
+  .pill-90 { background:#e8e8e8; color:#333; }
+  .pill-g { background:#dcfce7; color:#15803d; }
+  .pill-y { background:#fef9c3; color:#a16207; }
+  .pill-r { background:#fee2e2; color:#b91c1c; }
+  .btn-sm { padding:5px 12px; border-radius:8px; font-size:.75rem; font-weight:600; cursor:pointer; border:1.5px solid var(--border); background:white; transition:all .15s; white-space:nowrap; }
+  .btn-sm:hover { border-color:var(--ink); }
+  .btn-sm.del { border-color:#fca5a5; color:#b91c1c; }
+  .btn-sm.del:hover { background:#fff1f2; }
+
+  .saved-toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:var(--ink); color:white; padding:12px 24px; border-radius:12px; font-size:.88rem; font-weight:500; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  .saved-toast.show { opacity:1; }
+
+  @media (max-width:640px) {
+    .phase-cards { grid-template-columns:1fr; }
+    .actions-grid { grid-template-columns:1fr; }
+    .eval-header { flex-direction:column; }
+    .topbar { padding:16px 20px; }
+    .hero, #eval-screen, #report-screen, #historial-screen { padding:32px 18px; }
+  }
+  @media print {
+    .actions-grid, .topbar, .btn-historial, .nav-row, #home-screen, #eval-screen, #historial-screen { display:none !important; }
+    #report-screen { display:block !important; padding:20px; max-width:100%; }
+    body { background:white; }
+    .verdict-box { break-inside:avoid; }
+    .score-visual { break-inside:avoid; }
+    .notes-card { break-inside:avoid; }
+    .report-top h2 { font-size:1.6rem; }
+    .score-bar-fill { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+    .verdict-box.green, .verdict-box.yellow, .verdict-box.red { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+    .dim-tag { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>¿Cómo va el nuevo?</h1>
+  <div class="topbar-right">
+    <span>Seguimiento a los 30, 60 y 90 días</span>
+    <button class="btn-historial" id="btn-historial">📋 Historial RH</button>
+  </div>
+</div>
+
+<!-- PANTALLA 1: INICIO -->
+<div id="home-screen" class="screen active">
+  <div class="hero">
+    <h2>Evaluación de<br><em>nuevo colaborador</em></h2>
+    <p>Una herramienta rápida y sencilla para que el líder sepa si la persona que acaba de entrar tiene lo que se necesita para quedarse.</p>
+
+    <div class="phase-cards">
+      <div class="phase-card d30" data-phase="30">
+        <div class="badge">30 días</div>
+        <h3>¿Puede con el puesto?</h3>
+        <p>Actitud, primeras impresiones y si se está adaptando a cómo trabajamos.</p>
+      </div>
+      <div class="phase-card d60" data-phase="60">
+        <div class="badge">60 días</div>
+        <h3>¿Está aprendiendo?</h3>
+        <p>Si está agarrando el ritmo, trabajando bien con el equipo y cumpliendo lo que le toca.</p>
+      </div>
+      <div class="phase-card d90" data-phase="90">
+        <div class="badge">90 días</div>
+        <h3>¿Se queda?</h3>
+        <p>Si ya es parte del equipo, comparte nuestros valores y tiene futuro aquí.</p>
+      </div>
+    </div>
+
+    <div class="setup-area">
+      <h3>Empezar evaluación</h3>
+      <p>Elige el periodo y llena los datos del colaborador que vas a evaluar.</p>
+      <div class="form-row">
+        <label>Nombre del colaborador</label>
+        <input type="text" id="collab-name" placeholder="Nombre completo">
+      </div>
+      <div class="form-row">
+        <label>Puesto</label>
+        <select id="collab-role">
+          <option value="">— Selecciona un puesto —</option>
+          <option>ADMINISTRADOR DE PLATAFORMAS</option>
+          <option>ASISTENTE DE DIRECCION</option>
+          <option>ASISTENTE GENERAL</option>
+          <option>AUXILIAR ADMINISTRATIVO</option>
+          <option>AUXILIAR CONTABLE</option>
+          <option>AUXILIAR DE LIMPIEZA</option>
+          <option>CHOFER</option>
+          <option>COMMUNITY MANAGER</option>
+          <option>COORDINADOR CONTABLE</option>
+          <option>COORDINADOR DE RECLUTAMIENTO Y SELECCIÓN</option>
+          <option>DESARROLLADOR FULL STACK</option>
+          <option>DIRECTOR DE TRANSFORMACIÓN</option>
+          <option>DIRECTOR DE VENTAS</option>
+          <option>DIRECTOR GENERAL</option>
+          <option>DISEÑADOR JR.</option>
+          <option>DISEÑADOR SR.</option>
+          <option>ENCARGADA ADMINISTRATIVA</option>
+          <option>EJECUTIVA DE BODAS</option>
+          <option>EJECUTIVA DE COBRANZA</option>
+          <option>EJECUTIVA DE COTIZACIONES</option>
+          <option>EJECUTIVA DE GRUPOS</option>
+          <option>EJECUTIVA DE PRECOMPRAS</option>
+          <option>EJECUTIVA DE SEGUIMIENTO</option>
+          <option>EJECUTIVO DE PLATAFORMAS</option>
+          <option>EJECUTIVO DE PRODUCTO</option>
+          <option>EJECUTIVO DE RESERVACIONES</option>
+          <option>EJECUTIVO DE VENTAS</option>
+          <option>GENERALISTA DE RECURSOS HUMANOS</option>
+          <option>GERENTE DE ADMINISTRACION</option>
+          <option>GERENTE DE CONTABILIDAD</option>
+          <option>GERENTE DE DESARROLLO ORGANIZACIONAL</option>
+          <option>GERENTE DE GRUPOS Y BODAS</option>
+          <option>GERENTE DE MARKETING</option>
+          <option>GERENTE DE OPERACIONES</option>
+          <option>GERENTE DE PRODUCTO</option>
+          <option>GERENTE DE RESERVACIONES</option>
+          <option>GERENTE DE TRANSFORMACIÓN</option>
+          <option>GERENTE DE VENTAS</option>
+          <option>GERENTE DE ZONA</option>
+          <option>GESTORA DE PROYECTOS Y PROCESOS</option>
+          <option>LIDER DE DESARROLLO</option>
+          <option>RESPONSABLE DE SEGUIMIENTO A2A</option>
+          <option>SOPORTE</option>
+          <option>SUPERVISOR DE COTIZACIONES</option>
+          <option>SUPERVISOR DE RESERVAS</option>
+          <option>SUPERVISOR DE SEGUIMIENTO</option>
+          <option>UX/UI DESIGNER</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>¿Quién evalúa?</label>
+        <input type="text" id="eval-name" placeholder="Tu nombre">
+      </div>
+      <div class="form-row">
+        <label>Periodo a evaluar</label>
+        <select id="phase-select">
+          <option value="30">30 días — ¿Puede con el puesto?</option>
+          <option value="60">60 días — ¿Está aprendiendo?</option>
+          <option value="90">90 días — ¿Se queda?</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="btn-empezar">Empezar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANTALLA 2: PREGUNTAS -->
+<div id="eval-screen" class="screen">
+  <div class="eval-header">
+    <div>
+      <h2 id="eval-title">Evaluación 30 días</h2>
+      <p id="eval-subtitle">—</p>
+    </div>
+    <div id="eval-badge-wrap"></div>
+  </div>
+  <div class="progress-wrap" id="progress-dots"></div>
+  <div id="question-area"></div>
+  <div class="nav-row">
+    <button class="btn-back" id="btn-back">← Anterior</button>
+    <button class="btn-next" id="btn-next">Siguiente →</button>
+  </div>
+</div>
+
+<!-- PANTALLA 3: REPORTE -->
+<div id="report-screen" class="screen">
+  <div class="report-top">
+    <h2>¿Cómo va el nuevo?</h2>
+    <p id="report-meta">—</p>
+  </div>
+  <div id="verdict-area"></div>
+  <div id="score-area"></div>
+  <div id="notes-area"></div>
+  <div class="actions-grid">
+    <button class="btn-action" id="btn-descargar-reporte">📄 Descargar reporte</button>
+    <button class="btn-action green-btn" id="btn-exportar-excel">📊 Exportar a Excel</button>
+    <button class="btn-action dark" id="btn-nueva-eval">+ Nueva evaluación</button>
+  </div>
+</div>
+
+<!-- PANTALLA 4: LOGIN RH -->
+<div id="login-screen" class="screen">
+  <div style="max-width:400px;margin:80px auto;padding:0 24px;">
+    <div class="setup-area">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:2.2rem;margin-bottom:8px">🔒</div>
+        <h3 style="margin-bottom:6px">Acceso Recursos Humanos</h3>
+        <p style="font-size:.82rem;color:var(--muted)">El historial completo es solo para RH.<br>Ingresa la contraseña para continuar.</p>
+      </div>
+      <div class="form-row">
+        <label>Contraseña</label>
+        <input type="password" id="rh-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')verificarPassword()">
+      </div>
+      <div id="login-error" style="display:none;color:#b91c1c;font-size:.8rem;margin-bottom:12px;text-align:center">
+        Contraseña incorrecta. Intenta de nuevo.
+      </div>
+      <button class="btn-primary" id="btn-verificar">Entrar →</button>
+      <button id="btn-regresar-login" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:none;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--muted);cursor:pointer;">← Regresar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANTALLA 5: HISTORIAL -->
+<div id="historial-screen" class="screen">
+  <div id="historial-content"></div>
+</div>
+
+<div class="saved-toast" id="toast"></div>
+
+<script>
+// ─── PUNTAJES LABEL ───────────────────────────────────────────────
+const QUESTIONS = {
+  30: [
+    { id:"actitud", dim:"Actitud", type:"likert",
+      text:"¿Cómo describirías la actitud de esta persona en el día a día?",
+      hint:"Fíjate en su disposición, puntualidad y cómo reacciona cuando le hacen una corrección.",
+      labels:["Muy mala","Mala","Regular","Buena","Muy buena"] },
+    { id:"rol", dim:"¿Puede con el puesto?", type:"likert",
+      text:"¿Qué tan listo/a está para hacer las actividades principales de su trabajo?",
+      hint:"No tiene que saber todo todavía, pero sí tener una base con la que pueda arrancar.",
+      labels:["Sin base","Poca base","Base regular","Buena base","Ya puede solo/a"] },
+    { id:"cultura", dim:"¿Encaja con nosotros?", type:"yesno",
+      text:"¿La persona respeta y refleja la forma en que trabajamos y nos tratamos aquí?",
+      hint:null, options:["Sí, encaja bien","Está en proceso","Todavía no"] },
+    { id:"integracion", dim:"Trabajo colaborativo", type:"likert",
+      text:"¿Qué tanto trabaja de manera colaborativa con su equipo? ¿Ayuda, comparte información y suma al trabajo de los demás?",
+      hint:"No solo llevarse bien, sino contribuir activamente al trabajo del grupo.",
+      labels:["Nada colaborativo/a","Poco colaborativo/a","A veces","Colabora bien","Muy colaborativo/a"] },
+    { id:"alerta30", dim:"Focos rojos", type:"yesno",
+      text:"¿Has notado algo que te preocupe de esta persona en este primer mes?",
+      hint:"Faltas, mala actitud, pleitos, desinterés, llegadas tarde repetidas, etc.",
+      options:["No, nada","Algo pequeño","Sí, me preocupa"] },
+    { id:"notas30", dim:"Notas", type:"text",
+      text:"¿Quieres agregar algo más sobre cómo le fue en este primer mes?",
+      hint:"Lo que te pareció bueno, lo que hay que mejorar, o cualquier cosa que valga la pena anotar." }
+  ],
+  60: [
+    { id:"aprendizaje", dim:"¿Está aprendiendo?", type:"likert",
+      text:"¿Cómo va aprendiendo lo que necesita para hacer bien su trabajo?",
+      hint:"Considera qué tan rápido aprende y si retiene lo que se le enseña.",
+      labels:["No avanza","Muy lento","A ritmo normal","Rápido","Muy rápido"] },
+    { id:"autonomia", dim:"¿Puede solo/a?", type:"likert",
+      text:"¿Qué tanto puede resolver las cosas de su trabajo sin necesitar ayuda todo el tiempo?",
+      hint:null, labels:["Necesita apoyo en todo","Poco independiente","Más o menos","Bastante solo/a","Totalmente solo/a"] },
+    { id:"equipo60", dim:"Trabajo en equipo", type:"yesno",
+      text:"¿Le aporta algo positivo al equipo, más allá de solo convivir?",
+      hint:"¿Ayuda, propone, facilita el trabajo del grupo?",
+      options:["Sí, claramente","A veces","Todavía no"] },
+    { id:"comunicacion", dim:"Comunicación", type:"likert",
+      text:"¿Cómo se comunica con el equipo y con las demás personas con las que trabaja?",
+      hint:null, labels:["Muy mal","Mal","Regular","Bien","Muy bien"] },
+    { id:"compromisos", dim:"Cumplimiento", type:"yesno",
+      text:"¿Cumple con lo que se le encarga en los tiempos que se le piden?",
+      hint:null, options:["Sí, siempre","La mayoría de las veces","No con regularidad"] },
+    { id:"notas60", dim:"Notas", type:"text",
+      text:"¿En qué cosas específicas necesita mejorar el siguiente mes?",
+      hint:null }
+  ],
+  90: [
+    { id:"permanencia", dim:"¿Se queda?", type:"likert",
+      text:"Pensando en todo lo que has visto, ¿qué tan probable es que a esta persona le vaya bien aquí a largo plazo?",
+      hint:null, labels:["Muy poco probable","Poco probable","Puede ser","Probable","Muy probable"] },
+    { id:"valores", dim:"¿Es de los nuestros?", type:"yesno",
+      text:"¿Ha demostrado que comparte los valores y la forma de ser de la empresa?",
+      hint:null, options:["Sí, lo ha demostrado","Lo está desarrollando","Todavía no se ve"] },
+    { id:"desempeno90", dim:"Desempeño general", type:"likert",
+      text:"¿Cómo calificarías su trabajo en estos 3 meses?",
+      hint:"No se espera que ya esté dando resultados completos, sino que vaya bien encaminado/a.",
+      labels:["Muy por debajo","Por debajo","Normal","Por encima","Muy destacado"] },
+    { id:"potencial", dim:"¿Tiene futuro aquí?", type:"yesno",
+      text:"¿Ves que esta persona puede crecer y tomar más responsabilidad con el tiempo?",
+      hint:null, options:["Sí, lo veo claro","Con tiempo y apoyo, sí","Por el momento no"] },
+    { id:"recomendacion", dim:"Tu decisión", type:"yesno",
+      text:"Tomando todo en cuenta, ¿qué recomiendas?",
+      hint:null, options:["Que se quede","Darle más tiempo","Que no continúe"] },
+    { id:"notas90", dim:"Notas", type:"text",
+      text:"Escribe tus comentarios finales y qué pasos siguen.",
+      hint:"Esto quedará guardado en el reporte para que recursos humanos lo tenga como referencia." }
+  ]
+};
+
+// ─── ESTADO ───────────────────────────────────────────────────────
+let state = { phase:30, collabName:'', collabRole:'', evalName:'', currentQ:0, answers:{} };
+let lastReport = null;
+
+// ─── CONTRASEÑA RH ────────────────────────────────────────────────
+// Cambia este valor por la contraseña que quieras usar
+const RH_PASSWORD = 'RH2025';
+let rhAutenticado = false;
+
+function abrirHistorial() {
+  if (rhAutenticado) {
+    show('historial-screen');
+    renderHistorial();
+  } else {
+    document.getElementById('rh-password').value = '';
+    document.getElementById('login-error').style.display = 'none';
+    show('login-screen');
+    setTimeout(() => document.getElementById('rh-password').focus(), 100);
+  }
+}
+
+function verificarPassword() {
+  const input = document.getElementById('rh-password').value;
+  if (input === RH_PASSWORD) {
+    rhAutenticado = true;
+    document.getElementById('login-error').style.display = 'none';
+    show('historial-screen');
+    renderHistorial();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('rh-password').value = '';
+    document.getElementById('rh-password').focus();
+  }
+}
+
+
+
+// ─── STORAGE EN MEMORIA ───────────────────────────────────────────
+// Las evaluaciones se guardan en sesión. RH exporta a Excel para tener
+// el registro permanente usando el botón "Exportar a Excel" del historial.
+let _historialCache = [];
+
+function respuestasAFila(record) {
+  const a = record.respuestas || {};
+  const ph = Number(record.periodo);
+  let r1='', r2='', r3='', r4='', r5='';
+  if (ph === 30) {
+    r1 = a.actitud     !== undefined ? `${a.actitud}/5` : '—';
+    r2 = a.rol         !== undefined ? `${a.rol}/5`     : '—';
+    r3 = a.cultura     !== undefined ? ['Sí encaja','En proceso','No'][a.cultura]||'—' : '—';
+    r4 = a.integracion !== undefined ? `${a.integracion}/5` : '—';
+    r5 = a.alerta30    !== undefined ? ['Sin alertas','Algo menor','Sí preocupa'][a.alerta30]||'—' : '—';
+  } else if (ph === 60) {
+    r1 = a.aprendizaje  !== undefined ? `${a.aprendizaje}/5`  : '—';
+    r2 = a.autonomia    !== undefined ? `${a.autonomia}/5`    : '—';
+    r3 = a.comunicacion !== undefined ? `${a.comunicacion}/5` : '—';
+    r4 = a.equipo60     !== undefined ? ['Sí','A veces','No'][a.equipo60]||'—' : '—';
+    r5 = a.compromisos  !== undefined ? ['Siempre','La mayoría','No'][a.compromisos]||'—' : '—';
+  } else {
+    r1 = a.permanencia   !== undefined ? `${a.permanencia}/5`  : '—';
+    r2 = a.desempeno90   !== undefined ? `${a.desempeno90}/5`  : '—';
+    r3 = a.valores       !== undefined ? ['Sí lo ha demostrado','En desarrollo','No'][a.valores]||'—' : '—';
+    r4 = a.potencial     !== undefined ? ['Sí claro','Con apoyo','No'][a.potencial]||'—' : '—';
+    r5 = a.recomendacion !== undefined ? ['Que se quede','Darle más tiempo','Que no continúe'][a.recomendacion]||'—' : '—';
+  }
+  return [record.fecha, record.colaborador, record.puesto, record.lider,
+    `${ph} días`, record.puntaje, record.resultado,
+    record.semaforo==='green'?'Verde':record.semaforo==='yellow'?'Amarillo':'Rojo',
+    r1, r2, r3, r4, r5, a[`notas${ph}`]||''];
+}
+
+// ─── FORMSPREE ────────────────────────────────────────────────────
+const FORMSPREE_URL = 'https://formspree.io/f/mrerqkwv';
+
+function textoRespuestas(record) {
+  const a = record.respuestas || {};
+  const ph = Number(record.periodo);
+  const lineas = [];
+  if (ph === 30) {
+    if (a.actitud     !== undefined) lineas.push(`Actitud: ${a.actitud}/5`);
+    if (a.rol         !== undefined) lineas.push(`¿Puede con el puesto?: ${a.rol}/5`);
+    if (a.cultura     !== undefined) lineas.push(`¿Encaja con nosotros?: ${['Sí encaja','En proceso','No'][a.cultura]||'—'}`);
+    if (a.integracion !== undefined) lineas.push(`Trabajo colaborativo: ${a.integracion}/5`);
+    if (a.alerta30    !== undefined) lineas.push(`Focos rojos: ${['Sin alertas','Algo menor','Sí preocupa'][a.alerta30]||'—'}`);
+  } else if (ph === 60) {
+    if (a.aprendizaje  !== undefined) lineas.push(`¿Está aprendiendo?: ${a.aprendizaje}/5`);
+    if (a.autonomia    !== undefined) lineas.push(`¿Puede solo/a?: ${a.autonomia}/5`);
+    if (a.comunicacion !== undefined) lineas.push(`Comunicación: ${a.comunicacion}/5`);
+    if (a.equipo60     !== undefined) lineas.push(`Trabajo en equipo: ${['Sí','A veces','No'][a.equipo60]||'—'}`);
+    if (a.compromisos  !== undefined) lineas.push(`Cumplimiento: ${['Siempre','La mayoría','No'][a.compromisos]||'—'}`);
+  } else {
+    if (a.permanencia   !== undefined) lineas.push(`¿Se queda?: ${a.permanencia}/5`);
+    if (a.desempeno90   !== undefined) lineas.push(`Desempeño general: ${a.desempeno90}/5`);
+    if (a.valores       !== undefined) lineas.push(`¿Es de los nuestros?: ${['Sí lo ha demostrado','En desarrollo','No'][a.valores]||'—'}`);
+    if (a.potencial     !== undefined) lineas.push(`¿Tiene futuro aquí?: ${['Sí claro','Con apoyo','No'][a.potencial]||'—'}`);
+    if (a.recomendacion !== undefined) lineas.push(`Decisión: ${['Que se quede','Darle más tiempo','Que no continúe'][a.recomendacion]||'—'}`);
+  }
+  return lineas.join('\n');
+}
+
+async function enviarAFormspree(record) {
+  const ph = Number(record.periodo);
+  const notas = (record.respuestas || {})[`notas${ph}`] || '(sin notas)';
+  const semaforo = record.semaforo==='green'?'🟢 Verde':record.semaforo==='yellow'?'🟡 Amarillo':'🔴 Rojo';
+
+  const datos = {
+    _subject: `Nueva evaluación ${ph} días — ${record.colaborador} (${record.puesto})`,
+    Colaborador: record.colaborador,
+    Puesto: record.puesto,
+    Lider: record.lider,
+    Fecha: record.fecha,
+    Periodo: `${ph} días`,
+    Puntaje: `${record.puntaje}/100`,
+    Resultado: record.resultado,
+    Semaforo: semaforo,
+    Respuestas: textoRespuestas(record),
+    Notas: notas
+  };
+
+  try {
+    await fetch(FORMSPREE_URL, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+  } catch(e) {
+    console.warn('No se pudo enviar a Formspree:', e);
+  }
+}
+
+function guardarEvaluacion(record) {
+  _historialCache.unshift(record);
+  enviarAFormspree(record); // enviar correo sin bloquear
+  return Promise.resolve();
+}
+
+
+function getHistorial() {
+  return Promise.resolve(_historialCache);
+}
+
+function saveHistorial(arr) {
+  _historialCache = arr;
+  return Promise.resolve();
+}
+
+
+
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─── NAVEGACIÓN ───────────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function beginEval() {
+  const name = document.getElementById('collab-name').value.trim();
+  const role = document.getElementById('collab-role').value;
+  const ev   = document.getElementById('eval-name').value.trim();
+  const ph   = parseInt(document.getElementById('phase-select').value);
+  if (!name) { alert('Por favor escribe el nombre del colaborador.'); return; }
+  if (!role) { alert('Por favor selecciona el puesto.'); return; }
+  if (!ev)   { alert('Por favor escribe tu nombre.'); return; }
+  state = { phase:ph, collabName:name, collabRole:role, evalName:ev, currentQ:0, answers:{} };
+  buildEvalScreen();
+  show('eval-screen');
+}
+
+// ─── PANTALLA EVAL ────────────────────────────────────────────────
+const phaseClass = { 30:'d30', 60:'d60', 90:'d90' };
+
+function buildEvalScreen() {
+  const ph = state.phase;
+  document.getElementById('eval-title').textContent = `Evaluación ${ph} días`;
+  document.getElementById('eval-subtitle').textContent = `${state.collabName} · ${state.collabRole}`;
+  document.getElementById('eval-badge-wrap').innerHTML =
+    `<span class="badge ${phaseClass[ph]}" style="font-size:.78rem;padding:6px 14px">${ph} días</span>`;
+  buildDots(); renderQuestion();
+}
+
+function buildDots() {
+  document.getElementById('progress-dots').innerHTML =
+    QUESTIONS[state.phase].map((_,i) => `<div class="progress-dot" id="dot-${i}"></div>`).join('');
+}
+function updateDots() {
+  QUESTIONS[state.phase].forEach((_,i) => {
+    const d = document.getElementById(`dot-${i}`);
+    if(d) d.classList.toggle('done', i <= state.currentQ);
+  });
+}
+
+function renderQuestion() {
+  const qs = QUESTIONS[state.phase];
+  const q  = qs[state.currentQ];
+  const saved = state.answers[q.id];
+  let html = `<div class="question-card">
+    <div class="q-number">Pregunta ${state.currentQ+1} de ${qs.length} · ${q.dim}</div>
+    <div class="q-text">${q.text}</div>
+    ${q.hint ? `<div class="q-hint">${q.hint}</div>` : ''}`;
+
+  if (q.type === 'likert') {
+    html += `<div class="likert-row">`;
+    q.labels.forEach((lbl,i) => {
+      const val = i+1, chk = saved==val?'checked':'';
+      html += `<label class="likert-opt"><input type="radio" name="q_answer" value="${val}" ${chk} onchange="saveAnswer('${q.id}',${val})"><div class="likert-btn">${val}</div><span class="likert-label">${lbl}</span></label>`;
+    });
+    html += `</div>`;
+  }
+  if (q.type === 'yesno') {
+    html += `<div class="yesno-row">`;
+    q.options.forEach((opt,i) => {
+      const chk = saved==i?'checked':'';
+      html += `<label class="yesno-opt"><input type="radio" name="q_answer" value="${i}" ${chk} onchange="saveAnswer('${q.id}',${i})"><div class="yesno-btn">${opt}</div></label>`;
+    });
+    html += `</div>`;
+  }
+  if (q.type === 'text') {
+    html += `<textarea placeholder="Escribe aquí tus comentarios…" oninput="saveAnswer('${q.id}',this.value)">${saved||''}</textarea>`;
+  }
+  html += `</div>`;
+  document.getElementById('question-area').innerHTML = html;
+  document.getElementById('btn-back').style.visibility = state.currentQ===0?'hidden':'visible';
+  document.getElementById('btn-next').textContent = state.currentQ===qs.length-1 ? 'Ver resultado →' : 'Siguiente →';
+  updateDots();
+}
+
+function saveAnswer(id, val) { state.answers[id] = val; }
+
+function prevQ() { if(state.currentQ>0){state.currentQ--;renderQuestion();} }
+function nextQ() {
+  try {
+    const qs = QUESTIONS[state.phase];
+    const q  = qs[state.currentQ];
+
+    // Capturar textarea siempre primero
+    const ta = document.querySelector('#question-area textarea');
+    if (ta) state.answers[q.id] = ta.value;
+
+    // Validar selección en preguntas de opción
+    if (q.type !== 'text' && (state.answers[q.id] === undefined || state.answers[q.id] === null)) {
+      alert('Por favor selecciona una opción antes de continuar.');
+      return;
+    }
+
+    if (state.currentQ < qs.length - 1) {
+      state.currentQ++;
+      renderQuestion();
+    } else {
+      // Mostrar pantalla primero
+      show('report-screen');
+      // Construir reporte
+      lastReport = buildReport();
+      // Guardar sin bloquear
+      try { guardarEvaluacion(lastReport).catch(()=>{}); } catch(e) {}
+      toast('✅ Evaluación lista');
+    }
+  } catch(err) {
+    alert('Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+// ─── REPORTE ──────────────────────────────────────────────────────
+function buildReport() {
+  const ph = Number(state.phase);   // forzar número siempre
+  const a  = state.answers;
+  const today = new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('report-meta').textContent =
+    `${state.collabName} · ${state.collabRole} · Evaluado por ${state.evalName} · ${today}`;
+
+  let scoreMap = {}, totalScore = 0;
+
+  if (ph === 30) {
+    const likert = [a.actitud,a.rol,a.integracion].filter(v=>v!==undefined).map(Number);
+    const alerts = a.alerta30!==undefined?Number(a.alerta30):0;
+    const cultura = a.cultura!==undefined?Number(a.cultura):0;
+    const likertAvg = likert.length?likert.reduce((s,v)=>s+v,0)/likert.length:0;
+    const alertPenalty = alerts===0?0:alerts===1?0.5:1.5;
+    const culturaScore = cultura===0?5:cultura===1?3:1;
+    scoreMap = {
+      "Actitud": a.actitud?(a.actitud/5)*100:0,
+      "¿Puede con el puesto?": a.rol?(a.rol/5)*100:0,
+      "¿Encaja con nosotros?": (culturaScore/5)*100,
+      "Trabajo colaborativo": a.integracion?(a.integracion/5)*100:0,
+    };
+    totalScore = Math.min(100,Math.max(0,likertAvg*20+(culturaScore*4)-alertPenalty*10));
+
+  } else if (ph === 60) {
+    const likerts = [a.aprendizaje,a.autonomia,a.comunicacion].filter(v=>v!==undefined).map(Number);
+    const equipo = a.equipo60!==undefined?(Number(a.equipo60)===0?5:Number(a.equipo60)===1?3:1):3;
+    const cumpli = a.compromisos!==undefined?(Number(a.compromisos)===0?5:Number(a.compromisos)===1?3:1):3;
+    const avg = likerts.length?(likerts.reduce((s,v)=>s+v,0)+equipo+cumpli)/(likerts.length+2):3;
+    scoreMap = {
+      "¿Está aprendiendo?": a.aprendizaje?(a.aprendizaje/5)*100:0,
+      "¿Puede solo/a?": a.autonomia?(a.autonomia/5)*100:0,
+      "Comunicación": a.comunicacion?(a.comunicacion/5)*100:0,
+      "Trabajo en equipo": (equipo/5)*100,
+      "Cumple lo que se le pide": (cumpli/5)*100,
+    };
+    totalScore = Math.min(100,avg*20);
+
+  } else {
+    const desempeno = a.desempeno90!==undefined?Number(a.desempeno90):3;
+    const perm = a.permanencia!==undefined?Number(a.permanencia):3;
+    const valores = a.valores!==undefined?(Number(a.valores)===0?5:Number(a.valores)===1?3:1):3;
+    const potencial = a.potencial!==undefined?(Number(a.potencial)===0?5:Number(a.potencial)===1?3:1):3;
+    scoreMap = {
+      "Desempeño general": (desempeno/5)*100,
+      "Chances de quedarse a largo plazo": (perm/5)*100,
+      "¿Comparte nuestros valores?": (valores/5)*100,
+      "¿Tiene futuro aquí?": (potencial/5)*100,
+    };
+    totalScore = ((desempeno+perm+valores+potencial)/4)*20;
+  }
+
+  // Veredicto — fallback garantizado
+  let verdict = {title:"Evaluación completada",body:"Revisa las áreas evaluadas arriba.",cls:"green",icon:"✅"};
+  if (ph===30) {
+    if (totalScore>=70) verdict={title:"Va bien encaminado/a",body:"La persona muestra buena actitud, tiene base suficiente y está agarrando el ritmo del equipo. Continúa el seguimiento normal.",cls:"green",icon:"✅"};
+    else if (totalScore>=45) verdict={title:"Todavía se está acomodando",body:"Hay avance, pero hay cosas que atender pronto. Considera tener una plática directa con la persona esta semana.",cls:"yellow",icon:"⚠️"};
+    else verdict={title:"Hay cosas que preocupan",body:"Se vieron señales que no están bien. Hay que decidir si se le da un plan claro de mejora en las próximas dos semanas o si se escala a recursos humanos.",cls:"red",icon:"🔴"};
+  } else if (ph===60) {
+    if (totalScore>=70) verdict={title:"Va aprendiendo bien",body:"La persona está agarrando el puesto y está aportando al equipo. Sigue acompañándola y prepara la evaluación de los 90 días.",cls:"green",icon:"📈"};
+    else if (totalScore>=45) verdict={title:"Necesita más apoyo",body:"Hay avance, pero algunas cosas no están cuajando. Define 2 o 3 metas concretas para el siguiente mes y dale seguimiento cercano.",cls:"yellow",icon:"🧭"};
+    else verdict={title:"No está avanzando como se espera",body:"La persona está por debajo de lo que se espera en esta etapa. Hay que tener una conversación directa y decidir si sigue en el proceso.",cls:"red",icon:"🔴"};
+  } else {
+    const recom = a.recomendacion!==undefined?Number(a.recomendacion):1;
+    if (recom===0) verdict={title:"Recomendación: Que se quede",body:"La persona ya es parte del equipo, comparte nuestros valores y tiene para dar más. Se recomienda confirmar su continuidad.",cls:"green",icon:"🌟"};
+    else if (recom===1) verdict={title:"Recomendación: Darle más tiempo",body:"Hay cosas buenas, pero todavía no es claro si se va a quedar. Define un plan concreto para el siguiente mes y dale seguimiento.",cls:"yellow",icon:"👀"};
+    else verdict={title:"Recomendación: Que no continúe",body:"Con base en lo que se vio, la persona no está mostrando lo que se necesita. Se recomienda iniciar el proceso de salida de manera ordenada.",cls:"red",icon:"📋"};
+  }
+
+  document.getElementById('verdict-area').innerHTML = `
+    <div class="verdict-box ${verdict.cls}">
+      <div class="verdict-icon">${verdict.icon}</div>
+      <div class="verdict-text"><h3>${verdict.title}</h3><p>${verdict.body}</p></div>
+    </div>`;
+
+  const barColor = totalScore>=70?'#16a34a':totalScore>=45?'#d97706':'#dc2626';
+  let barsHtml = `<div class="score-visual"><h4>Cómo quedó en cada área</h4>
+    <div class="score-bar-wrap">
+      <div class="score-bar-label"><span>Puntaje general</span><span>${Math.round(totalScore)}/100</span></div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${totalScore}%;background:${barColor}"></div></div>
+    </div>`;
+  Object.entries(scoreMap).forEach(([dim,val]) => {
+    const c = val>=70?'#16a34a':val>=45?'#d97706':'#dc2626';
+    barsHtml += `<div class="score-bar-wrap">
+      <div class="score-bar-label"><span>${dim}</span><span>${Math.round(val)}%</span></div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${val}%;background:${c}"></div></div>
+    </div>`;
+  });
+  barsHtml += `<div style="margin-top:18px"><div style="font-size:.72rem;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Resumen de áreas</div>
+    <div class="dim-tags">`;
+  Object.entries(scoreMap).forEach(([dim,val]) => {
+    const cls = val>=70?'high':val>=45?'mid':'low';
+    barsHtml += `<span class="dim-tag ${cls}">${dim}</span>`;
+  });
+  barsHtml += `</div></div></div>`;
+  document.getElementById('score-area').innerHTML = barsHtml;
+
+  const notesVal = a[`notas${ph}`];
+  document.getElementById('notes-area').innerHTML = notesVal&&notesVal.trim() ?
+    `<div class="notes-card"><h4>Lo que dijo el líder</h4><p>${notesVal.trim()}</p></div>` : '';
+
+  return {
+    id: Date.now(),
+    fecha: new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}),
+    colaborador: state.collabName,
+    puesto: state.collabRole,
+    lider: state.evalName,
+    periodo: ph,
+    puntaje: Math.round(totalScore),
+    resultado: verdict.title,
+    semaforo: verdict.cls,
+    respuestas: {...a},
+    scoreMap: {...scoreMap}
+  };
+}
+
+// ─── HISTORIAL ────────────────────────────────────────────────────
+async function renderHistorial() {
+  const hist = await getHistorial();
+  const semaforoClass = {green:'pill-g',yellow:'pill-y',red:'pill-r'};
+  let html = `<div class="hist-header">
+    <h2>Historial de evaluaciones</h2>
+    <div class="hist-actions">
+      <button class="btn-action" style="padding:10px 18px;font-size:.82rem" id="btn-export-hist">📊 Exportar a Excel</button>
+      <button class="btn-action" style="padding:10px 18px;font-size:.82rem;border-color:#fca5a5;color:#b91c1c" id="btn-limpiar-todo">🗑️ Limpiar todo</button>
+      <button class="btn-action dark" style="padding:10px 18px;font-size:.82rem" id="btn-nueva-hist">+ Nueva evaluación</button>
+      <button class="btn-action" style="padding:10px 18px;font-size:.82rem;border-color:#e0dfd4;color:var(--muted)" id="btn-cerrar-sesion">🔒 Cerrar sesión</button>
+    </div>
+  </div>`;
+
+  if (!hist.length) {
+    html += `<div class="hist-empty"><div style="font-size:2.5rem">📭</div><p>Todavía no hay evaluaciones guardadas.</p></div>`;
+  } else {
+    html += `<div class="hist-table-wrap"><table>
+      <thead><tr>
+        <th>Fecha</th><th>Colaborador</th><th>Puesto</th><th>Líder</th>
+        <th>Periodo</th><th>Puntaje</th><th>Resultado</th><th></th>
+      </tr></thead><tbody>`;
+    hist.forEach((r, i) => {
+      html += `<tr>
+        <td>${r.fecha}</td>
+        <td><strong>${r.colaborador}</strong></td>
+        <td style="font-size:.78rem;color:var(--muted)">${r.puesto}</td>
+        <td>${r.lider}</td>
+        <td><span class="pill pill-${r.periodo}">${r.periodo} días</span></td>
+        <td><strong>${r.puntaje}/100</strong></td>
+        <td><span class="pill ${semaforoClass[r.semaforo]||''}">
+          ${r.semaforo==='green'?'✅ Bien':r.semaforo==='yellow'?'⚠️ Atención':'🔴 Preocupa'}
+        </span></td>
+        <td><button class="btn-sm del" data-idx="${i}">Eliminar</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  document.getElementById('historial-content').innerHTML = html;
+
+  // Event delegation — evita problemas de scope con onclick en HTML dinámico
+  document.getElementById('historial-content').addEventListener('click', async function(e) {
+    // Eliminar individual
+    if (e.target.classList.contains('del') && e.target.dataset.idx !== undefined) {
+      if (!confirm('¿Eliminar esta evaluación?')) return;
+      const idx = parseInt(e.target.dataset.idx);
+      const h = await getHistorial();
+      h.splice(idx, 1);
+      await saveHistorial(h);
+      toast('Evaluación eliminada');
+      renderHistorial();
+    }
+    // Exportar
+    if (e.target.id === 'btn-export-hist') exportarExcelHistorial();
+    // Limpiar todo
+    if (e.target.id === 'btn-limpiar-todo') {
+      if (!confirm('¿Seguro que quieres eliminar TODAS las evaluaciones? Esto no se puede deshacer.')) return;
+      await saveHistorial([]);
+      toast('Historial limpiado');
+      renderHistorial();
+    }
+    // Cerrar sesión
+    if (e.target.id === 'btn-cerrar-sesion') {
+      rhAutenticado = false;
+      show('home-screen');
+      toast('Sesión de RH cerrada');
+    }
+  }, { once: true });
+}
+
+// ─── EXPORTAR EXCEL ───────────────────────────────────────────────
+
+// Estilos reutilizables
+const ST = {
+  headerDark: { font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, fill:{fgColor:{rgb:'101010'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:{bottom:{style:'medium',color:{rgb:'FAD83F'}}} },
+  header30:   { font:{bold:true,color:{rgb:'101010'},sz:11}, fill:{fgColor:{rgb:'FAD83F'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true} },
+  header60:   { font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, fill:{fgColor:{rgb:'4563FF'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true} },
+  header90:   { font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, fill:{fgColor:{rgb:'101010'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true} },
+  green:  { fill:{fgColor:{rgb:'D1FAE5'}}, font:{color:{rgb:'065F46'},bold:true}, alignment:{horizontal:'center'} },
+  yellow: { fill:{fgColor:{rgb:'FEF3C7'}}, font:{color:{rgb:'92400E'},bold:true}, alignment:{horizontal:'center'} },
+  red:    { fill:{fgColor:{rgb:'FEE2E2'}}, font:{color:{rgb:'991B1B'},bold:true}, alignment:{horizontal:'center'} },
+  center: { alignment:{horizontal:'center',vertical:'center'} },
+  bold:   { font:{bold:true} },
+  wrap:   { alignment:{wrapText:true,vertical:'top'} },
+  muted:  { font:{color:{rgb:'888888'},sz:9}, alignment:{horizontal:'center'} }
+};
+
+function aplicarEstilo(ws, celda, estilo) {
+  if (!ws[celda]) ws[celda] = {t:'s', v:''};
+  ws[celda].s = estilo;
+}
+
+function colorSemaforo(sem) {
+  return sem==='green'?ST.green : sem==='yellow'?ST.yellow : ST.red;
+}
+
+function textoSemaforo(sem) {
+  return sem==='green'?'✅  Verde' : sem==='yellow'?'⚠️  Amarillo' : '🔴  Rojo';
+}
+
+function filaResumen(r) {
+  return [
+    r.fecha,
+    r.colaborador,
+    r.puesto,
+    r.lider,
+    `${r.periodo} días`,
+    r.puntaje,
+    r.resultado,
+    textoSemaforo(r.semaforo)
+  ];
+}
+
+function filaDetalle(r) {
+  const a = r.respuestas||{};
+  const qs = QUESTIONS[r.periodo]||[];
+  const row = [r.fecha, r.colaborador, r.puesto, r.lider, `${r.periodo} días`, r.puntaje, r.resultado, textoSemaforo(r.semaforo)];
+  qs.forEach(q => {
+    const val = a[q.id];
+    if (q.type==='likert') row.push(val!==undefined ? `${val}/5 — ${q.labels[val-1]}` : '—');
+    else if (q.type==='yesno') row.push(val!==undefined ? q.options[val] : '—');
+    else row.push(val||'—');
+  });
+  return row;
+}
+
+function headersBase() {
+  return ['Fecha','Colaborador','Puesto','Líder que evalúa','Periodo','Puntaje (0-100)','Resultado','Semáforo'];
+}
+
+function headersDetalle(periodo) {
+  const qs = QUESTIONS[periodo]||[];
+  return [...headersBase(), ...qs.map(q => q.dim)];
+}
+
+function estilizarHojaResumen(ws, filas, headerStyle) {
+  const headers = headersBase();
+  headers.forEach((_, ci) => {
+    const ref = XLSX.utils.encode_cell({r:0, c:ci});
+    aplicarEstilo(ws, ref, headerStyle);
+  });
+  filas.forEach((fila, ri) => {
+    const sem = fila._sem;
+    fila.forEach((_, ci) => {
+      const ref = XLSX.utils.encode_cell({r:ri+1, c:ci});
+      if (!ws[ref]) return;
+      if (ci===7) { ws[ref].s = colorSemaforo(sem); return; }
+      if (ci===5) { ws[ref].s = ST.center; return; }
+      ws[ref].s = { alignment:{vertical:'center'} };
+    });
+  });
+}
+
+function crearHojaDetalle(registros, periodo, headerStyle) {
+  if (!registros.length) return null;
+  const headers = headersDetalle(periodo);
+  const rows = registros.map(r => {
+    const f = filaDetalle(r);
+    f._sem = r.semaforo;
+    return f;
+  });
+  const data = [headers, ...rows.map(r => r.filter((_, i) => i !== '_sem' || typeof i === 'number').slice(0, headers.length))];
+  // Limpio: reconstruyo sin la propiedad _sem
+  const dataLimpia = [headers, ...registros.map(r => filaDetalle(r))];
+  const ws = XLSX.utils.aoa_to_sheet(dataLimpia);
+  const colWidths = headers.map((h, i) => {
+    if (i < 4) return {wch: 22};
+    if (i === 4) return {wch: 12};
+    if (i === 5) return {wch: 14};
+    if (i === 6) return {wch: 30};
+    if (i === 7) return {wch: 14};
+    return {wch: 28};
+  });
+  ws['!cols'] = colWidths;
+  ws['!rows'] = [{hpt:32}, ...registros.map(() => ({hpt:20}))];
+  // Encabezados
+  headers.forEach((_, ci) => {
+    const ref = XLSX.utils.encode_cell({r:0, c:ci});
+    aplicarEstilo(ws, ref, headerStyle);
+  });
+  // Celdas de datos
+  registros.forEach((r, ri) => {
+    const fila = filaDetalle(r);
+    fila.forEach((_, ci) => {
+      const ref = XLSX.utils.encode_cell({r:ri+1, c:ci});
+      if (!ws[ref]) return;
+      if (ci===7) { ws[ref].s = colorSemaforo(r.semaforo); return; }
+      if (ci===5) { ws[ref].s = ST.center; return; }
+      if (ci >= 8) { ws[ref].s = ST.wrap; return; }
+      ws[ref].s = { alignment:{vertical:'center'} };
+    });
+  });
+  return ws;
+}
+
+async function exportarExcel(registros) {
+  const hist = registros || (lastReport ? [lastReport] : await getHistorial());
+  if (!hist.length) { alert('No hay evaluaciones para exportar.'); return; }
+
+  const wb = XLSX.utils.book_new();
+  wb.Props = { Title:'Evaluaciones Nuevo Ingreso', Author:'Herramienta 30-60-90' };
+
+  // ── HOJA 1: RESUMEN GENERAL ──────────────────────────────────────
+  const resHeaders = headersBase();
+  const resRows = hist.map(r => filaDetalle(r).slice(0, 8));
+  const wsRes = XLSX.utils.aoa_to_sheet([resHeaders, ...resRows]);
+  wsRes['!cols'] = [12,22,28,20,12,14,34,16].map(w=>({wch:w}));
+  wsRes['!rows'] = [{hpt:32}, ...hist.map(()=>({hpt:20}))];
+  resHeaders.forEach((_,ci) => aplicarEstilo(wsRes, XLSX.utils.encode_cell({r:0,c:ci}), ST.headerDark));
+  hist.forEach((r,ri) => {
+    resRows[ri].forEach((_,ci) => {
+      const ref = XLSX.utils.encode_cell({r:ri+1,c:ci});
+      if (!wsRes[ref]) return;
+      if (ci===7) { wsRes[ref].s = colorSemaforo(r.semaforo); return; }
+      if (ci===5) { wsRes[ref].s = ST.center; return; }
+      wsRes[ref].s = {alignment:{vertical:'center'}};
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, wsRes, '📋 Resumen General');
+
+  // ── HOJAS DE DETALLE POR PERIODO ─────────────────────────────────
+  const configs = [
+    { periodo:30, label:'🟠 Detalle 30 días', style:ST.header30 },
+    { periodo:60, label:'🔵 Detalle 60 días', style:ST.header60 },
+    { periodo:90, label:'🟢 Detalle 90 días', style:ST.header90 },
+  ];
+  configs.forEach(({periodo, label, style}) => {
+    const sub = hist.filter(r => r.periodo === periodo);
+    if (!sub.length) return;
+    const ws = crearHojaDetalle(sub, periodo, style);
+    if (ws) XLSX.utils.book_append_sheet(wb, ws, label);
+  });
+
+  // ── HOJA EXTRA: GUÍA DE LECTURA ──────────────────────────────────
+  const guia = [
+    ['GUÍA DE LECTURA — Evaluaciones de Nuevo Ingreso'],
+    [''],
+    ['SEMÁFOROS'],
+    ['✅  Verde', 'Puntaje 70-100', 'La persona va bien. Continúa el seguimiento normal.'],
+    ['⚠️  Amarillo', 'Puntaje 45-69', 'Hay áreas de atención. Dar retroalimentación directa esta semana.'],
+    ['🔴  Rojo', 'Puntaje 0-44', 'Hay señales preocupantes. Escalar a recursos humanos.'],
+    [''],
+    ['PERIODOS'],
+    ['30 días', '¿Puede con el puesto?', 'Se evalúa actitud, base para el rol, encaje cultural y convivencia.'],
+    ['60 días', '¿Está aprendiendo?', 'Se evalúa aprendizaje, autonomía, comunicación y cumplimiento.'],
+    ['90 días', '¿Se queda?', 'Se evalúa permanencia, valores, desempeño y potencial.'],
+    [''],
+    ['ESCALA DE PUNTAJE (preguntas numéricas)'],
+    ['1', 'Muy bajo / Sin base'],
+    ['2', 'Bajo'],
+    ['3', 'Regular / Normal'],
+    ['4', 'Bueno'],
+    ['5', 'Muy bueno / Destacado'],
+  ];
+  const wsGuia = XLSX.utils.aoa_to_sheet(guia);
+  wsGuia['!cols'] = [{wch:20},{wch:20},{wch:55}];
+  aplicarEstilo(wsGuia, 'A1', { font:{bold:true,sz:14,color:{rgb:'1A1A2E'}}, fill:{fgColor:{rgb:'F5F0E8'}} });
+  ['A3','A8','A13'].forEach(c => aplicarEstilo(wsGuia, c, ST.headerDark));
+  [['A4','B4','C4'],['A5','B5','C5'],['A6','B6','C6']].forEach(([a,b,c],i) => {
+    const styles = [ST.green, ST.yellow, ST.red];
+    aplicarEstilo(wsGuia, a, styles[i]);
+  });
+  XLSX.utils.book_append_sheet(wb, wsGuia, 'ℹ️ Guía de lectura');
+
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Evaluaciones_NuevoIngreso_${fecha}.xlsx`);
+  toast('📊 Excel descargado correctamente');
+}
+
+async function exportarExcelHistorial() { exportarExcel(await getHistorial()); }
+
+function printReport() {
+  const meta    = document.getElementById('report-meta').textContent;
+  const verdict = document.getElementById('verdict-area').innerHTML;
+  const scores  = document.getElementById('score-area').innerHTML;
+  const notes   = document.getElementById('notes-area').innerHTML;
+  const nombreColab = (state.collabName || 'Colaborador');
+  const periodo = state.phase;
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Evaluacion_${nombreColab}_${periodo}dias</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:Arial,sans-serif; background:white; color:#101010; padding:32px 40px; font-size:13px; }
+  h2 { font-size:22px; margin-bottom:4px; font-weight:700; }
+  .meta { color:#888; font-size:11px; margin-bottom:24px; border-bottom:3px solid #fad83f; padding-bottom:12px; }
+  .verdict-box { border-radius:10px; padding:18px 22px; margin-bottom:18px; display:flex; align-items:flex-start; gap:16px; border:2px solid; }
+  .verdict-box.green  { background:#f0fdf4; border-color:#86efac; }
+  .verdict-box.yellow { background:#fffbeb; border-color:#fcd34d; }
+  .verdict-box.red    { background:#fff1f2; border-color:#fca5a5; }
+  .verdict-icon { font-size:28px; line-height:1; padding-top:2px; }
+  .verdict-text h3 { font-size:16px; font-weight:700; margin-bottom:4px; }
+  .verdict-text p { font-size:12px; line-height:1.6; }
+  .score-visual { background:#f9f9f9; border:1px solid #ddd; border-radius:10px; padding:18px; margin-bottom:14px; }
+  .score-visual h4 { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#999; margin-bottom:12px; }
+  .score-bar-wrap { margin-bottom:10px; }
+  .score-bar-label { display:flex; justify-content:space-between; font-size:11px; margin-bottom:3px; }
+  .score-bar-track { height:8px; background:#e5e5e5; border-radius:8px; overflow:hidden; }
+  .score-bar-fill { height:100%; border-radius:8px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .dim-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .dim-tag { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .dim-tag.high { background:#dcfce7; color:#15803d; }
+  .dim-tag.mid  { background:#fef9c3; color:#a16207; }
+  .dim-tag.low  { background:#fee2e2; color:#b91c1c; }
+  .notes-card { background:#f9f9f9; border:1px solid #ddd; border-radius:10px; padding:16px 20px; margin-bottom:14px; }
+  .notes-card h4 { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#999; margin-bottom:8px; }
+  .notes-card p { font-size:12px; line-height:1.7; white-space:pre-wrap; }
+  .footer { margin-top:20px; padding-top:10px; border-top:1px solid #eee; font-size:10px; color:#bbb; text-align:center; }
+</style>
+</head>
+<body>
+  <h2>Evaluacion ${periodo} dias — ${nombreColab}</h2>
+  <div class="meta">${meta}</div>
+  ${verdict}
+  ${scores}
+  ${notes}
+  <div class="footer">Herramienta de seguimiento 30·60·90 dias</div>
+</body>
+</html>`;
+
+  try {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const nombreArchivo = `Evaluacion_${(nombreColab).replace(/\s+/g,'_')}_${periodo}dias_${new Date().toISOString().slice(0,10)}.html`;
+    a.href     = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('📄 Reporte descargado — ábrelo y usa Ctrl+P para guardar como PDF');
+  } catch(e) {
+    alert('No se pudo descargar. Intenta de nuevo.');
+  }
+}
+function newEval() { show('home-screen'); }
+
+// ─── CONECTAR TODOS LOS BOTONES ───────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Navegación evaluación
+  document.getElementById('btn-next').addEventListener('click', nextQ);
+  document.getElementById('btn-back').addEventListener('click', prevQ);
+
+  // Inicio
+  document.getElementById('btn-empezar').addEventListener('click', beginEval);
+  document.getElementById('btn-historial').addEventListener('click', abrirHistorial);
+
+  // Tarjetas de fase
+  document.querySelectorAll('.phase-card[data-phase]').forEach(function(card) {
+    card.addEventListener('click', function() {
+      document.getElementById('phase-select').value = card.dataset.phase;
+    });
+  });
+
+  // Login
+  document.getElementById('btn-verificar').addEventListener('click', verificarPassword);
+  document.getElementById('btn-regresar-login').addEventListener('click', function() { show('home-screen'); });
+  document.getElementById('rh-password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') verificarPassword();
+  });
+
+  // Reporte
+  document.getElementById('btn-descargar-reporte').addEventListener('click', printReport);
+  document.getElementById('btn-exportar-excel').addEventListener('click', function() { exportarExcel(); });
+  document.getElementById('btn-nueva-eval').addEventListener('click', newEval);
+});
+</script>
+</body>
+</html>
