@@ -548,6 +548,7 @@ async function enviarAFormspree(record) {
 
   const datos = {
     _subject: `Nueva evaluación ${ph} días — ${record.colaborador} (${record.puesto})`,
+    _cc: 'alexa@hostech.com.mx',
     Colaborador: record.colaborador,
     Puesto: record.puesto,
     Lider: record.lider,
