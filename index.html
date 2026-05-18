@@ -375,7 +375,7 @@
 <div class="saved-toast" id="toast"></div>
 
 <script>
-// ─── PUNTAJES LABEL ───────────────────────────────────────────────
+// ─── PREGUNTAS ────────────────────────────────────────────────────
 const QUESTIONS = {
   30: [
     { id:"actitud", dim:"Actitud", type:"likert",
@@ -451,7 +451,6 @@ let state = { phase:30, collabName:'', collabRole:'', evalName:'', currentQ:0, a
 let lastReport = null;
 
 // ─── CONTRASEÑA RH ────────────────────────────────────────────────
-// Cambia este valor por la contraseña que quieras usar
 const RH_PASSWORD = 'RH2025';
 let rhAutenticado = false;
 
@@ -481,11 +480,7 @@ function verificarPassword() {
   }
 }
 
-
-
 // ─── STORAGE EN MEMORIA ───────────────────────────────────────────
-// Las evaluaciones se guardan en sesión. RH exporta a Excel para tener
-// el registro permanente usando el botón "Exportar a Excel" del historial.
 let _historialCache = [];
 
 function respuestasAFila(record) {
@@ -518,7 +513,7 @@ function respuestasAFila(record) {
 }
 
 // ─── FORMSPREE ────────────────────────────────────────────────────
-const FORMSPREE_URL = 'https://formspree.io/f/mrerqkwv';
+const FORMSPREE_URL = 'https://formspree.io/f/mbdblonj';
 
 function textoRespuestas(record) {
   const a = record.respuestas || {};
@@ -553,7 +548,6 @@ async function enviarAFormspree(record) {
 
   const datos = {
     _subject: `Nueva evaluación ${ph} días — ${record.colaborador} (${record.puesto})`,
-    _cc: 'alexa@hostech.com.mx',
     Colaborador: record.colaborador,
     Puesto: record.puesto,
     Lider: record.lider,
@@ -567,11 +561,12 @@ async function enviarAFormspree(record) {
   };
 
   try {
-    await fetch(FORMSPREE_URL, {
+    const res = await fetch(FORMSPREE_URL, {
       method: 'POST',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(datos)
     });
+    if (!res.ok) console.warn('Formspree respondió con error:', res.status);
   } catch(e) {
     console.warn('No se pudo enviar a Formspree:', e);
   }
@@ -579,10 +574,9 @@ async function enviarAFormspree(record) {
 
 function guardarEvaluacion(record) {
   _historialCache.unshift(record);
-  enviarAFormspree(record); // enviar correo sin bloquear
+  enviarAFormspree(record);
   return Promise.resolve();
 }
-
 
 function getHistorial() {
   return Promise.resolve(_historialCache);
@@ -592,9 +586,6 @@ function saveHistorial(arr) {
   _historialCache = arr;
   return Promise.resolve();
 }
-
-
-
 
 function toast(msg) {
   const t = document.getElementById('toast');
@@ -688,28 +679,20 @@ function nextQ() {
   try {
     const qs = QUESTIONS[state.phase];
     const q  = qs[state.currentQ];
-
-    // Capturar textarea siempre primero
     const ta = document.querySelector('#question-area textarea');
     if (ta) state.answers[q.id] = ta.value;
-
-    // Validar selección en preguntas de opción
     if (q.type !== 'text' && (state.answers[q.id] === undefined || state.answers[q.id] === null)) {
       alert('Por favor selecciona una opción antes de continuar.');
       return;
     }
-
     if (state.currentQ < qs.length - 1) {
       state.currentQ++;
       renderQuestion();
     } else {
-      // Mostrar pantalla primero
       show('report-screen');
-      // Construir reporte
       lastReport = buildReport();
-      // Guardar sin bloquear
       try { guardarEvaluacion(lastReport).catch(()=>{}); } catch(e) {}
-      toast('✅ Evaluación lista');
+      toast('✅ Evaluación lista — enviando a RH...');
     }
   } catch(err) {
     alert('Error: ' + err.message);
@@ -719,7 +702,7 @@ function nextQ() {
 
 // ─── REPORTE ──────────────────────────────────────────────────────
 function buildReport() {
-  const ph = Number(state.phase);   // forzar número siempre
+  const ph = Number(state.phase);
   const a  = state.answers;
   const today = new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
   document.getElementById('report-meta').textContent =
@@ -741,7 +724,6 @@ function buildReport() {
       "Trabajo colaborativo": a.integracion?(a.integracion/5)*100:0,
     };
     totalScore = Math.min(100,Math.max(0,likertAvg*20+(culturaScore*4)-alertPenalty*10));
-
   } else if (ph === 60) {
     const likerts = [a.aprendizaje,a.autonomia,a.comunicacion].filter(v=>v!==undefined).map(Number);
     const equipo = a.equipo60!==undefined?(Number(a.equipo60)===0?5:Number(a.equipo60)===1?3:1):3;
@@ -755,7 +737,6 @@ function buildReport() {
       "Cumple lo que se le pide": (cumpli/5)*100,
     };
     totalScore = Math.min(100,avg*20);
-
   } else {
     const desempeno = a.desempeno90!==undefined?Number(a.desempeno90):3;
     const perm = a.permanencia!==undefined?Number(a.permanencia):3;
@@ -770,7 +751,6 @@ function buildReport() {
     totalScore = ((desempeno+perm+valores+potencial)/4)*20;
   }
 
-  // Veredicto — fallback garantizado
   let verdict = {title:"Evaluación completada",body:"Revisa las áreas evaluadas arriba.",cls:"green",icon:"✅"};
   if (ph===30) {
     if (totalScore>=70) verdict={title:"Va bien encaminado/a",body:"La persona muestra buena actitud, tiene base suficiente y está agarrando el ritmo del equipo. Continúa el seguimiento normal.",cls:"green",icon:"✅"};
@@ -875,9 +855,7 @@ async function renderHistorial() {
 
   document.getElementById('historial-content').innerHTML = html;
 
-  // Event delegation — evita problemas de scope con onclick en HTML dinámico
   document.getElementById('historial-content').addEventListener('click', async function(e) {
-    // Eliminar individual
     if (e.target.classList.contains('del') && e.target.dataset.idx !== undefined) {
       if (!confirm('¿Eliminar esta evaluación?')) return;
       const idx = parseInt(e.target.dataset.idx);
@@ -887,16 +865,13 @@ async function renderHistorial() {
       toast('Evaluación eliminada');
       renderHistorial();
     }
-    // Exportar
     if (e.target.id === 'btn-export-hist') exportarExcelHistorial();
-    // Limpiar todo
     if (e.target.id === 'btn-limpiar-todo') {
       if (!confirm('¿Seguro que quieres eliminar TODAS las evaluaciones? Esto no se puede deshacer.')) return;
       await saveHistorial([]);
       toast('Historial limpiado');
       renderHistorial();
     }
-    // Cerrar sesión
     if (e.target.id === 'btn-cerrar-sesion') {
       rhAutenticado = false;
       show('home-screen');
@@ -906,8 +881,6 @@ async function renderHistorial() {
 }
 
 // ─── EXPORTAR EXCEL ───────────────────────────────────────────────
-
-// Estilos reutilizables
 const ST = {
   headerDark: { font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, fill:{fgColor:{rgb:'101010'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:{bottom:{style:'medium',color:{rgb:'FAD83F'}}} },
   header30:   { font:{bold:true,color:{rgb:'101010'},sz:11}, fill:{fgColor:{rgb:'FAD83F'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true} },
@@ -935,19 +908,6 @@ function textoSemaforo(sem) {
   return sem==='green'?'✅  Verde' : sem==='yellow'?'⚠️  Amarillo' : '🔴  Rojo';
 }
 
-function filaResumen(r) {
-  return [
-    r.fecha,
-    r.colaborador,
-    r.puesto,
-    r.lider,
-    `${r.periodo} días`,
-    r.puntaje,
-    r.resultado,
-    textoSemaforo(r.semaforo)
-  ];
-}
-
 function filaDetalle(r) {
   const a = r.respuestas||{};
   const qs = QUESTIONS[r.periodo]||[];
@@ -970,34 +930,9 @@ function headersDetalle(periodo) {
   return [...headersBase(), ...qs.map(q => q.dim)];
 }
 
-function estilizarHojaResumen(ws, filas, headerStyle) {
-  const headers = headersBase();
-  headers.forEach((_, ci) => {
-    const ref = XLSX.utils.encode_cell({r:0, c:ci});
-    aplicarEstilo(ws, ref, headerStyle);
-  });
-  filas.forEach((fila, ri) => {
-    const sem = fila._sem;
-    fila.forEach((_, ci) => {
-      const ref = XLSX.utils.encode_cell({r:ri+1, c:ci});
-      if (!ws[ref]) return;
-      if (ci===7) { ws[ref].s = colorSemaforo(sem); return; }
-      if (ci===5) { ws[ref].s = ST.center; return; }
-      ws[ref].s = { alignment:{vertical:'center'} };
-    });
-  });
-}
-
 function crearHojaDetalle(registros, periodo, headerStyle) {
   if (!registros.length) return null;
   const headers = headersDetalle(periodo);
-  const rows = registros.map(r => {
-    const f = filaDetalle(r);
-    f._sem = r.semaforo;
-    return f;
-  });
-  const data = [headers, ...rows.map(r => r.filter((_, i) => i !== '_sem' || typeof i === 'number').slice(0, headers.length))];
-  // Limpio: reconstruyo sin la propiedad _sem
   const dataLimpia = [headers, ...registros.map(r => filaDetalle(r))];
   const ws = XLSX.utils.aoa_to_sheet(dataLimpia);
   const colWidths = headers.map((h, i) => {
@@ -1010,12 +945,10 @@ function crearHojaDetalle(registros, periodo, headerStyle) {
   });
   ws['!cols'] = colWidths;
   ws['!rows'] = [{hpt:32}, ...registros.map(() => ({hpt:20}))];
-  // Encabezados
   headers.forEach((_, ci) => {
     const ref = XLSX.utils.encode_cell({r:0, c:ci});
     aplicarEstilo(ws, ref, headerStyle);
   });
-  // Celdas de datos
   registros.forEach((r, ri) => {
     const fila = filaDetalle(r);
     fila.forEach((_, ci) => {
@@ -1037,7 +970,6 @@ async function exportarExcel(registros) {
   const wb = XLSX.utils.book_new();
   wb.Props = { Title:'Evaluaciones Nuevo Ingreso', Author:'Herramienta 30-60-90' };
 
-  // ── HOJA 1: RESUMEN GENERAL ──────────────────────────────────────
   const resHeaders = headersBase();
   const resRows = hist.map(r => filaDetalle(r).slice(0, 8));
   const wsRes = XLSX.utils.aoa_to_sheet([resHeaders, ...resRows]);
@@ -1055,7 +987,6 @@ async function exportarExcel(registros) {
   });
   XLSX.utils.book_append_sheet(wb, wsRes, '📋 Resumen General');
 
-  // ── HOJAS DE DETALLE POR PERIODO ─────────────────────────────────
   const configs = [
     { periodo:30, label:'🟠 Detalle 30 días', style:ST.header30 },
     { periodo:60, label:'🔵 Detalle 60 días', style:ST.header60 },
@@ -1067,37 +998,6 @@ async function exportarExcel(registros) {
     const ws = crearHojaDetalle(sub, periodo, style);
     if (ws) XLSX.utils.book_append_sheet(wb, ws, label);
   });
-
-  // ── HOJA EXTRA: GUÍA DE LECTURA ──────────────────────────────────
-  const guia = [
-    ['GUÍA DE LECTURA — Evaluaciones de Nuevo Ingreso'],
-    [''],
-    ['SEMÁFOROS'],
-    ['✅  Verde', 'Puntaje 70-100', 'La persona va bien. Continúa el seguimiento normal.'],
-    ['⚠️  Amarillo', 'Puntaje 45-69', 'Hay áreas de atención. Dar retroalimentación directa esta semana.'],
-    ['🔴  Rojo', 'Puntaje 0-44', 'Hay señales preocupantes. Escalar a recursos humanos.'],
-    [''],
-    ['PERIODOS'],
-    ['30 días', '¿Puede con el puesto?', 'Se evalúa actitud, base para el rol, encaje cultural y convivencia.'],
-    ['60 días', '¿Está aprendiendo?', 'Se evalúa aprendizaje, autonomía, comunicación y cumplimiento.'],
-    ['90 días', '¿Se queda?', 'Se evalúa permanencia, valores, desempeño y potencial.'],
-    [''],
-    ['ESCALA DE PUNTAJE (preguntas numéricas)'],
-    ['1', 'Muy bajo / Sin base'],
-    ['2', 'Bajo'],
-    ['3', 'Regular / Normal'],
-    ['4', 'Bueno'],
-    ['5', 'Muy bueno / Destacado'],
-  ];
-  const wsGuia = XLSX.utils.aoa_to_sheet(guia);
-  wsGuia['!cols'] = [{wch:20},{wch:20},{wch:55}];
-  aplicarEstilo(wsGuia, 'A1', { font:{bold:true,sz:14,color:{rgb:'1A1A2E'}}, fill:{fgColor:{rgb:'F5F0E8'}} });
-  ['A3','A8','A13'].forEach(c => aplicarEstilo(wsGuia, c, ST.headerDark));
-  [['A4','B4','C4'],['A5','B5','C5'],['A6','B6','C6']].forEach(([a,b,c],i) => {
-    const styles = [ST.green, ST.yellow, ST.red];
-    aplicarEstilo(wsGuia, a, styles[i]);
-  });
-  XLSX.utils.book_append_sheet(wb, wsGuia, 'ℹ️ Guía de lectura');
 
   const fecha = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `Evaluaciones_NuevoIngreso_${fecha}.xlsx`);
@@ -1154,7 +1054,7 @@ function printReport() {
   ${verdict}
   ${scores}
   ${notes}
-  <div class="footer">Herramienta de seguimiento 30·60·90 dias</div>
+  <div class="footer">Herramienta de seguimiento 30·60·90 dias — HOSTECH</div>
 </body>
 </html>`;
 
@@ -1174,33 +1074,28 @@ function printReport() {
     alert('No se pudo descargar. Intenta de nuevo.');
   }
 }
+
 function newEval() { show('home-screen'); }
 
-// ─── CONECTAR TODOS LOS BOTONES ───────────────────────────────────
+// ─── EVENTOS ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-  // Navegación evaluación
   document.getElementById('btn-next').addEventListener('click', nextQ);
   document.getElementById('btn-back').addEventListener('click', prevQ);
-
-  // Inicio
   document.getElementById('btn-empezar').addEventListener('click', beginEval);
   document.getElementById('btn-historial').addEventListener('click', abrirHistorial);
 
-  // Tarjetas de fase
   document.querySelectorAll('.phase-card[data-phase]').forEach(function(card) {
     card.addEventListener('click', function() {
       document.getElementById('phase-select').value = card.dataset.phase;
     });
   });
 
-  // Login
   document.getElementById('btn-verificar').addEventListener('click', verificarPassword);
   document.getElementById('btn-regresar-login').addEventListener('click', function() { show('home-screen'); });
   document.getElementById('rh-password').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') verificarPassword();
   });
 
-  // Reporte
   document.getElementById('btn-descargar-reporte').addEventListener('click', printReport);
   document.getElementById('btn-exportar-excel').addEventListener('click', function() { exportarExcel(); });
   document.getElementById('btn-nueva-eval').addEventListener('click', newEval);
