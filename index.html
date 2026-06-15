@@ -260,6 +260,7 @@
           <option>DIRECTOR DE TRANSFORMACIÓN</option>
           <option>DIRECTOR DE VENTAS</option>
           <option>DIRECTOR GENERAL</option>
+          <option>DIRECTORA DE MERCADOTECNIA</option>
           <option>DISEÑADOR JR.</option>
           <option>DISEÑADOR SR.</option>
           <option>ENCARGADA ADMINISTRATIVA</option>
@@ -293,7 +294,9 @@
           <option>SUPERVISOR DE RESERVAS</option>
           <option>SUPERVISOR DE SEGUIMIENTO</option>
           <option>UX/UI DESIGNER</option>
+          <option value="__otro__">Otro (especificar)</option>
         </select>
+        <input type="text" id="collab-role-otro" placeholder="Escribe el puesto" style="margin-top:10px;display:none;">
       </div>
       <div class="form-row">
         <label>¿Quién evalúa?</label>
@@ -604,11 +607,14 @@ function show(id) {
 
 function beginEval() {
   const name = document.getElementById('collab-name').value.trim();
-  const role = document.getElementById('collab-role').value;
+  let role = document.getElementById('collab-role').value;
+  if (role === '__otro__') {
+    role = document.getElementById('collab-role-otro').value.trim().toUpperCase();
+  }
   const ev   = document.getElementById('eval-name').value.trim();
   const ph   = parseInt(document.getElementById('phase-select').value);
   if (!name) { alert('Por favor escribe el nombre del colaborador.'); return; }
-  if (!role) { alert('Por favor selecciona el puesto.'); return; }
+  if (!role) { alert('Por favor selecciona o escribe el puesto.'); return; }
   if (!ev)   { alert('Por favor escribe tu nombre.'); return; }
   state = { phase:ph, collabName:name, collabRole:role, evalName:ev, currentQ:0, answers:{} };
   buildEvalScreen();
@@ -1089,6 +1095,17 @@ document.addEventListener('DOMContentLoaded', function() {
     card.addEventListener('click', function() {
       document.getElementById('phase-select').value = card.dataset.phase;
     });
+  });
+
+  document.getElementById('collab-role').addEventListener('change', function() {
+    const otroInput = document.getElementById('collab-role-otro');
+    if (this.value === '__otro__') {
+      otroInput.style.display = 'block';
+      otroInput.focus();
+    } else {
+      otroInput.style.display = 'none';
+      otroInput.value = '';
+    }
   });
 
   document.getElementById('btn-verificar').addEventListener('click', verificarPassword);
