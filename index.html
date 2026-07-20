@@ -6,6 +6,7 @@
 <title>¿Cómo va el nuevo? — Seguimiento 30·60·90 días</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --ink: #101010;
@@ -342,7 +343,7 @@
   <div id="score-area"></div>
   <div id="notes-area"></div>
   <div class="actions-grid">
-    <button class="btn-action" id="btn-descargar-reporte">📄 Descargar reporte</button>
+    <button class="btn-action" id="btn-descargar-reporte">📄 Descargar cárdex PDF</button>
     <button class="btn-action green-btn" id="btn-exportar-excel">📊 Exportar a Excel</button>
     <button class="btn-action dark" id="btn-nueva-eval">+ Nueva evaluación</button>
   </div>
@@ -515,8 +516,8 @@ function respuestasAFila(record) {
     r1, r2, r3, r4, r5, a[`notas${ph}`]||''];
 }
 
-// ─── FORMSPREE ────────────────────────────────────────────────────
-const FORMSPREE_URL = 'https://formspree.io/f/mbdblonj';
+// ─── GOOGLE APPS SCRIPT ───────────────────────────────────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmXw4fxbIKkflLUvBG1scXgE1LJuSHh2_iQI20_VYe4W3zh_3ckTNey7FgCQcus-IiHA/exec';
 
 function textoRespuestas(record) {
   const a = record.respuestas || {};
@@ -544,14 +545,12 @@ function textoRespuestas(record) {
   return lineas.join('\n');
 }
 
-async function enviarAFormspree(record) {
+async function enviarAGoogleSheets(record) {
   const ph = Number(record.periodo);
   const notas = (record.respuestas || {})[`notas${ph}`] || '(sin notas)';
   const semaforo = record.semaforo==='green'?'🟢 Verde':record.semaforo==='yellow'?'🟡 Amarillo':'🔴 Rojo';
 
   const datos = {
-    _subject: `Nueva evaluación ${ph} días — ${record.colaborador} (${record.puesto})`,
-    _cc: 'alexa@hostech.com.mx',
     Colaborador: record.colaborador,
     Puesto: record.puesto,
     Lider: record.lider,
@@ -565,20 +564,20 @@ async function enviarAFormspree(record) {
   };
 
   try {
-    const res = await fetch(FORMSPREE_URL, {
+    await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datos)
     });
-    if (!res.ok) console.warn('Formspree respondió con error:', res.status);
   } catch(e) {
-    console.warn('No se pudo enviar a Formspree:', e);
+    console.warn('No se pudo enviar a Google Sheets:', e);
   }
 }
 
 function guardarEvaluacion(record) {
   _historialCache.unshift(record);
-  enviarAFormspree(record);
+  enviarAGoogleSheets(record);
   return Promise.resolve();
 }
 
@@ -1014,72 +1013,254 @@ async function exportarExcel(registros) {
 async function exportarExcelHistorial() { exportarExcel(await getHistorial()); }
 
 function printReport() {
-  const meta    = document.getElementById('report-meta').textContent;
-  const verdict = document.getElementById('verdict-area').innerHTML;
-  const scores  = document.getElementById('score-area').innerHTML;
-  const notes   = document.getElementById('notes-area').innerHTML;
-  const nombreColab = (state.collabName || 'Colaborador');
-  const periodo = state.phase;
-
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Evaluacion_${nombreColab}_${periodo}dias</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:Arial,sans-serif; background:white; color:#101010; padding:32px 40px; font-size:13px; }
-  h2 { font-size:22px; margin-bottom:4px; font-weight:700; }
-  .meta { color:#888; font-size:11px; margin-bottom:24px; border-bottom:3px solid #fad83f; padding-bottom:12px; }
-  .verdict-box { border-radius:10px; padding:18px 22px; margin-bottom:18px; display:flex; align-items:flex-start; gap:16px; border:2px solid; }
-  .verdict-box.green  { background:#f0fdf4; border-color:#86efac; }
-  .verdict-box.yellow { background:#fffbeb; border-color:#fcd34d; }
-  .verdict-box.red    { background:#fff1f2; border-color:#fca5a5; }
-  .verdict-icon { font-size:28px; line-height:1; padding-top:2px; }
-  .verdict-text h3 { font-size:16px; font-weight:700; margin-bottom:4px; }
-  .verdict-text p { font-size:12px; line-height:1.6; }
-  .score-visual { background:#f9f9f9; border:1px solid #ddd; border-radius:10px; padding:18px; margin-bottom:14px; }
-  .score-visual h4 { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#999; margin-bottom:12px; }
-  .score-bar-wrap { margin-bottom:10px; }
-  .score-bar-label { display:flex; justify-content:space-between; font-size:11px; margin-bottom:3px; }
-  .score-bar-track { height:8px; background:#e5e5e5; border-radius:8px; overflow:hidden; }
-  .score-bar-fill { height:100%; border-radius:8px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .dim-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-  .dim-tag { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .dim-tag.high { background:#dcfce7; color:#15803d; }
-  .dim-tag.mid  { background:#fef9c3; color:#a16207; }
-  .dim-tag.low  { background:#fee2e2; color:#b91c1c; }
-  .notes-card { background:#f9f9f9; border:1px solid #ddd; border-radius:10px; padding:16px 20px; margin-bottom:14px; }
-  .notes-card h4 { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#999; margin-bottom:8px; }
-  .notes-card p { font-size:12px; line-height:1.7; white-space:pre-wrap; }
-  .footer { margin-top:20px; padding-top:10px; border-top:1px solid #eee; font-size:10px; color:#bbb; text-align:center; }
-</style>
-</head>
-<body>
-  <h2>Evaluacion ${periodo} dias — ${nombreColab}</h2>
-  <div class="meta">${meta}</div>
-  ${verdict}
-  ${scores}
-  ${notes}
-  <div class="footer">Herramienta de seguimiento 30·60·90 dias — HOSTECH</div>
-</body>
-</html>`;
-
+  if (!lastReport) { alert('No hay evaluación activa.'); return; }
   try {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const nombreArchivo = `Evaluacion_${(nombreColab).replace(/\s+/g,'_')}_${periodo}dias_${new Date().toISOString().slice(0,10)}.html`;
-    a.href     = url;
-    a.download = nombreArchivo;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('📄 Reporte descargado — ábrelo y usa Ctrl+P para guardar como PDF');
+    generarPDFCardex(lastReport);
   } catch(e) {
-    alert('No se pudo descargar. Intenta de nuevo.');
+    alert('Error al generar PDF: ' + e.message);
+    console.error(e);
   }
+}
+
+function generarPDFCardex(record) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, M = 18, CW = W - M * 2;
+  const ph = Number(record.periodo);
+  const a = record.respuestas || {};
+
+  // ── Colores
+  const NEGRO  = [16, 16, 16];
+  const AZUL   = [69, 99, 255];
+  const AMARILLO = [250, 216, 63];
+  const BLANCO = [255, 255, 255];
+  const GRIS_BG = [246, 245, 236];
+  const GRIS_LINE = [224, 223, 212];
+  const VERDE  = [22, 163, 74];
+  const NARANJA = [217, 119, 6];
+  const ROJO   = [220, 38, 38];
+  const VERDE_BG  = [240, 253, 244];
+  const AMARILLO_BG = [255, 251, 235];
+  const ROJO_BG = [255, 241, 242];
+
+  let y = 0;
+
+  function addPage() { doc.addPage(); y = 0; }
+  function checkY(need) { if (y + need > 270) addPage(); }
+
+  // ── HEADER ──────────────────────────────────────────────────────
+  doc.setFillColor(...NEGRO);
+  doc.rect(0, 0, W, 28, 'F');
+  doc.setFillColor(...AMARILLO);
+  doc.rect(0, 28, W, 2, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...BLANCO);
+  doc.text('¿Cómo va el nuevo?', M, 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(180, 180, 160);
+  doc.text('Cárdex de Evaluación · HOSTECH', M, 19);
+
+  const periodoLabel = ph === 30 ? '30 DÍAS' : ph === 60 ? '60 DÍAS' : '90 DÍAS';
+  const badgeColor = ph === 30 ? AMARILLO : ph === 60 ? AZUL : NEGRO;
+  const badgeText = ph === 30 ? NEGRO : BLANCO;
+  doc.setFillColor(...badgeColor);
+  doc.roundedRect(W - M - 28, 8, 28, 10, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...badgeText);
+  doc.text(periodoLabel, W - M - 14, 14.5, { align: 'center' });
+
+  y = 38;
+
+  // ── DATOS GENERALES ─────────────────────────────────────────────
+  doc.setFillColor(...GRIS_BG);
+  doc.roundedRect(M, y, CW, 30, 3, 3, 'F');
+  doc.setDrawColor(...GRIS_LINE);
+  doc.roundedRect(M, y, CW, 30, 3, 3, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(138, 136, 128);
+  doc.text('COLABORADOR', M + 6, y + 7);
+  doc.text('PUESTO', M + 6, y + 19);
+  doc.text('EVALUADO POR', CW / 2 + 4, y + 7);
+  doc.text('FECHA', CW / 2 + 4, y + 19);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...NEGRO);
+  doc.text(record.colaborador || '—', M + 6, y + 13);
+  doc.setFontSize(9);
+  doc.text(record.puesto || '—', M + 6, y + 25);
+  doc.setFontSize(10);
+  doc.text(record.lider || '—', CW / 2 + 4, y + 13);
+  doc.setFontSize(9);
+  doc.text(record.fecha || '—', CW / 2 + 4, y + 25);
+
+  y += 38;
+
+  // ── PUNTAJE GENERAL ─────────────────────────────────────────────
+  const puntaje = record.puntaje || 0;
+  const colorPuntaje = puntaje >= 70 ? VERDE : puntaje >= 45 ? NARANJA : ROJO;
+  const bgPuntaje = puntaje >= 70 ? VERDE_BG : puntaje >= 45 ? AMARILLO_BG : ROJO_BG;
+
+  doc.setFillColor(...bgPuntaje);
+  doc.roundedRect(M, y, CW, 18, 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(138, 136, 128);
+  doc.text('PUNTAJE GENERAL', M + 6, y + 6);
+  doc.setFontSize(20);
+  doc.setTextColor(...colorPuntaje);
+  doc.text(`${puntaje}`, M + 6, y + 15);
+  doc.setFontSize(10);
+  doc.setTextColor(138, 136, 128);
+  doc.text('/100', M + 18, y + 15);
+
+  // Barra de puntaje
+  const barX = M + 38, barY = y + 10, barW = CW - 44, barH = 5;
+  doc.setFillColor(224, 223, 212);
+  doc.roundedRect(barX, barY, barW, barH, 2, 2, 'F');
+  doc.setFillColor(...colorPuntaje);
+  doc.roundedRect(barX, barY, barW * (puntaje / 100), barH, 2, 2, 'F');
+
+  y += 26;
+
+  // ── VEREDICTO ───────────────────────────────────────────────────
+  const sem = record.semaforo || 'green';
+  const bgVeredicto = sem === 'green' ? VERDE_BG : sem === 'yellow' ? AMARILLO_BG : ROJO_BG;
+  const borderVeredicto = sem === 'green' ? VERDE : sem === 'yellow' ? NARANJA : ROJO;
+  const iconoSem = sem === 'green' ? '✓ ' : sem === 'yellow' ? '⚠ ' : '✕ ';
+
+  doc.setFillColor(...bgVeredicto);
+  doc.roundedRect(M, y, CW, 20, 3, 3, 'F');
+  doc.setDrawColor(...borderVeredicto);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(M, y, CW, 20, 3, 3, 'S');
+  doc.setLineWidth(0.2);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...borderVeredicto);
+  doc.text(iconoSem + (record.resultado || '—'), M + 6, y + 8);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...NEGRO);
+  const bodyTexto = sem === 'green'
+    ? (ph===30?'Va bien encaminado/a. Continúa el seguimiento normal.':ph===60?'Va aprendiendo bien. Prepara la evaluación de los 90 días.':'Se recomienda confirmar su continuidad.')
+    : sem === 'yellow'
+    ? (ph===30?'Hay avance, pero hay cosas que atender pronto.':ph===60?'Define 2–3 metas concretas para el siguiente mes.':'Hay cosas buenas, pero todavía no es claro.')
+    : (ph===30?'Se vieron señales que no están bien. Escalar a RH.':ph===60?'La persona está por debajo de lo esperado.':'Se recomienda iniciar el proceso de salida.');
+  const lines = doc.splitTextToSize(bodyTexto, CW - 12);
+  doc.text(lines, M + 6, y + 15);
+
+  y += 28;
+
+  // ── ÁREAS EVALUADAS ─────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(138, 136, 128);
+  doc.text('ÁREAS EVALUADAS', M, y);
+  y += 5;
+
+  const scoreMap = record.scoreMap || {};
+  Object.entries(scoreMap).forEach(([dim, val]) => {
+    checkY(10);
+    const cBar = val >= 70 ? VERDE : val >= 45 ? NARANJA : ROJO;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...NEGRO);
+    doc.text(dim, M, y + 4);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...cBar);
+    doc.text(`${Math.round(val)}%`, W - M, y + 4, { align: 'right' });
+    doc.setFillColor(224, 223, 212);
+    doc.roundedRect(M, y + 6, CW, 3, 1, 1, 'F');
+    doc.setFillColor(...cBar);
+    doc.roundedRect(M, y + 6, CW * (val / 100), 3, 1, 1, 'F');
+    y += 12;
+  });
+
+  y += 4;
+
+  // ── RESPUESTAS DETALLADAS ───────────────────────────────────────
+  checkY(12);
+  doc.setFillColor(...AZUL);
+  doc.rect(M, y, CW, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...BLANCO);
+  doc.text('RESPUESTAS DEL EVALUADOR', M + 4, y + 5);
+  y += 10;
+
+  const qs = QUESTIONS[ph] || [];
+  qs.forEach((q, idx) => {
+    if (q.type === 'text') return;
+    const val = a[q.id];
+    if (val === undefined || val === null) return;
+
+    checkY(12);
+    doc.setFillColor(idx % 2 === 0 ? 250 : 255, idx % 2 === 0 ? 249 : 255, idx % 2 === 0 ? 240 : 255);
+    doc.rect(M, y, CW, 10, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(138, 136, 128);
+    doc.text(q.dim.toUpperCase(), M + 4, y + 4);
+
+    let respText = '';
+    if (q.type === 'likert') respText = `${val}/5 — ${q.labels[val - 1] || ''}`;
+    if (q.type === 'yesno') respText = q.options[val] || '—';
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...NEGRO);
+    doc.text(respText, M + 4, y + 8.5);
+    y += 11;
+  });
+
+  // ── NOTAS ───────────────────────────────────────────────────────
+  const notasVal = a[`notas${ph}`];
+  if (notasVal && notasVal.trim()) {
+    checkY(20);
+    y += 4;
+    doc.setFillColor(...GRIS_BG);
+    doc.setDrawColor(...GRIS_LINE);
+    const notasLines = doc.splitTextToSize(notasVal.trim(), CW - 12);
+    const notasH = Math.max(18, notasLines.length * 5 + 12);
+    doc.roundedRect(M, y, CW, notasH, 3, 3, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(138, 136, 128);
+    doc.text('COMENTARIOS DEL LÍDER', M + 6, y + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...NEGRO);
+    doc.text(notasLines, M + 6, y + 12);
+    y += notasH + 6;
+  }
+
+  // ── FOOTER ──────────────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...GRIS_LINE);
+    doc.setLineWidth(0.3);
+    doc.line(M, 285, W - M, 285);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(180, 180, 160);
+    doc.text('Cárdex de Evaluación · HOSTECH · Seguimiento 30·60·90 días', M, 289);
+    doc.text(`Página ${i} de ${totalPages}`, W - M, 289, { align: 'right' });
+  }
+
+  const nombreArchivo = `Cardex_${(record.colaborador || 'colaborador').replace(/\s+/g,'_')}_${ph}dias_${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(nombreArchivo);
+  toast('📄 Cárdex PDF descargado correctamente');
 }
 
 function newEval() { show('home-screen'); }
