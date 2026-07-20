@@ -517,7 +517,7 @@ function respuestasAFila(record) {
 }
 
 // ─── GOOGLE APPS SCRIPT ───────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmXw4fxbIKkflLUvBG1scXgE1LJuSHh2_iQI20_VYe4W3zh_3ckTNey7FgCQcus-IiHA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUp0PM-jDv6t84to0eL4SAtvVGMwH-kozPQ0KcSlvhncX8MKw7qVeGC8lKMqnW5vHf/exec';
 
 function textoRespuestas(record) {
   const a = record.respuestas || {};
@@ -550,6 +550,16 @@ async function enviarAGoogleSheets(record) {
   const notas = (record.respuestas || {})[`notas${ph}`] || '(sin notas)';
   const semaforo = record.semaforo==='green'?'🟢 Verde':record.semaforo==='yellow'?'🟡 Amarillo':'🔴 Rojo';
 
+  // Generar PDF en base64
+  let pdfBase64 = '';
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdfDoc = generarPDFCardexDoc(record);
+    pdfBase64 = pdfDoc.output('datauristring').split(',')[1];
+  } catch(e) {
+    console.warn('No se pudo generar PDF base64:', e);
+  }
+
   const datos = {
     Colaborador: record.colaborador,
     Puesto: record.puesto,
@@ -560,7 +570,8 @@ async function enviarAGoogleSheets(record) {
     Resultado: record.resultado,
     Semaforo: semaforo,
     Respuestas: textoRespuestas(record),
-    Notas: notas
+    Notas: notas,
+    PdfBase64: pdfBase64
   };
 
   try {
@@ -1015,14 +1026,17 @@ async function exportarExcelHistorial() { exportarExcel(await getHistorial()); }
 function printReport() {
   if (!lastReport) { alert('No hay evaluación activa.'); return; }
   try {
-    generarPDFCardex(lastReport);
+    const doc = generarPDFCardexDoc(lastReport);
+    const nombreArchivo = `Cardex_${(lastReport.colaborador || 'colaborador').replace(/\s+/g,'_')}_${lastReport.periodo}dias_${new Date().toISOString().slice(0,10)}.pdf`;
+    doc.save(nombreArchivo);
+    toast('📄 Cárdex PDF descargado correctamente');
   } catch(e) {
     alert('Error al generar PDF: ' + e.message);
     console.error(e);
   }
 }
 
-function generarPDFCardex(record) {
+function generarPDFCardexDoc(record) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 18, CW = W - M * 2;
@@ -1259,8 +1273,7 @@ function generarPDFCardex(record) {
   }
 
   const nombreArchivo = `Cardex_${(record.colaborador || 'colaborador').replace(/\s+/g,'_')}_${ph}dias_${new Date().toISOString().slice(0,10)}.pdf`;
-  doc.save(nombreArchivo);
-  toast('📄 Cárdex PDF descargado correctamente');
+  return doc;
 }
 
 function newEval() { show('home-screen'); }
